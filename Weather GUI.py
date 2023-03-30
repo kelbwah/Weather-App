@@ -83,7 +83,6 @@ def update_screen_first_time():
 
 def update_screen():
     global relx, rely, root, temperature_label, temperature_label_size, weather_code_label, weather_code_label_size, text_drop_count
-    
     if text_drop_count == 0:
         temperature_label.place(relx = relx + 0.5, rely = rely-0.1, anchor='center')
         weather_code_label.place(relx = relx + 0.5, rely = rely+0.03, anchor='center') 
@@ -97,8 +96,9 @@ def update_screen():
         text_drop_count+=1
         root.after(10, update_screen_first_time)         
 
-def retrieve_weather():
-    global count, frame, temperature_label_size, weather_code_label_size, temperature_label, weather_code_label, text_drop_count, temperature, humidity, weatherCode
+def retrieve_weather(event=None):
+    global count, frame, temperature_label_size, weather_code_label_size, temperature_label, weather_code_label, text_drop_count, temperature, humidity, weatherCode, error_label
+    error_label = None
     user_location = get_location_box()
     url = "https://api.tomorrow.io/v4/weather/realtime"
     api_key = "MDO7cymd27naoVgRsJWYNNXPTlCldIxv"
@@ -108,30 +108,37 @@ def retrieve_weather():
     "fields":["temperature"],
     "units":"imperial",
     "apikey":api_key}
+    try:
+        response = requests.request("GET", url, params=querystring)
+        temperature = round(response.json()['data']['values']['temperature'])
+        humidity = round(response.json()['data']['values']['humidity'])
+        weatherCode = response.json()['data']['values']['weatherCode']
 
-    response = requests.request("GET", url, params=querystring)
-    temperature = round(response.json()['data']['values']['temperature'])
-    humidity = round(response.json()['data']['values']['humidity'])
-    weatherCode = response.json()['data']['values']['weatherCode']
+        temperature=str(temperature) + '°'
+        weatherCode = weatherCodes[str(weatherCode)]
 
-    temperature=str(temperature) + '°'
-    weatherCode = weatherCodes[str(weatherCode)]
-
-    if count == 0:
-        temperature_label_size = 0
-        weather_code_label_size = 0
-        temperature_label = ctk.CTkLabel(master = frame, text = temperature, font=('Roboto', temperature_label_size))
-        weather_code_label = ctk.CTkLabel(master = frame, text = weatherCode, font=('Roboto', weather_code_label_size))
-        update_screen_first_time()
-    else:
-         temperature_label.destroy()
-         weather_code_label.destroy()
-         text_drop_count = 0
-         temperature_label_size = 0
-         weather_code_label_size = 0
-         temperature_label = ctk.CTkLabel(master = frame, text = temperature, font=('Roboto', temperature_label_size))
-         weather_code_label = ctk.CTkLabel(master = frame, text = weatherCode, font=('Roboto', weather_code_label_size))
-         update_screen()
+        if count == 0:
+            temperature_label_size = 0
+            weather_code_label_size = 0
+            temperature_label = ctk.CTkLabel(master = frame, text = temperature, font=('Roboto', temperature_label_size))
+            weather_code_label = ctk.CTkLabel(master = frame, text = weatherCode, font=('Roboto', weather_code_label_size))
+            update_screen_first_time()
+        else:
+            temperature_label.destroy()
+            weather_code_label.destroy()
+            text_drop_count = 0
+            temperature_label_size = 0
+            weather_code_label_size = 0
+            temperature_label = ctk.CTkLabel(master = frame, text = temperature, font=('Roboto', temperature_label_size))
+            weather_code_label = ctk.CTkLabel(master = frame, text = weatherCode, font=('Roboto', weather_code_label_size))
+            update_screen()
+    except requests.exceptions.HTTPError as err:
+        if err.response.status_code == 429:
+            error_message = "Error 429: Too Many Requests, You must wait again until amount of requests is reset"
+            print(error_message)
+        else:
+            error_message = (f"HTTP error occurred: {err}")
+            print(error_message)
 
 def get_location_box():
     global location, text_box
@@ -154,10 +161,12 @@ def create_app():
 
     text_box = ctk.CTkEntry(master = frame, placeholder_text = 'Location', font=('Roboto', 14)) #Relx = 0.5
     text_box.place(relx = relx + 0.5, rely = rely+ 0.2, anchor='center')
-    
+
+
     weather_information = ctk.CTkButton(master = frame, text = "Check Weather", font = ('Roboto', 14), command=retrieve_weather) #Relx = 0.5
     weather_information.place(relx = relx + 0.5, rely = rely + 0.3, anchor='center')
 
+    text_box.bind('<Return>', retrieve_weather)
     root.mainloop()
 
 if __name__ == '__main__':
